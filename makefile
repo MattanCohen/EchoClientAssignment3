@@ -1,3 +1,6 @@
+# to run: ./bin/EchoClient 192.168.0.194 7777
+
+
 CXX = g++
 CXXFLAGS = -c -Wall -Weffc++ -g -std=c++11
 CPPFLAGS = -I ./include -MMD -MP

@@ -7,7 +7,7 @@ using std::cout;
 using std::cerr;
 using std::endl;
 using std::string;
- 
+ using namespace std;
 ConnectionHandler::ConnectionHandler(string host, short port): host_(host), port_(port), io_service_(), socket_(io_service_){}
     
 ConnectionHandler::~ConnectionHandler() {
@@ -16,66 +16,163 @@ ConnectionHandler::~ConnectionHandler() {
 
 
 
-short ConnectionHandler::bytesToShort(char* bytesArr) {
+static short bytesToShort(char* bytesArr) {
     short result = (short)((bytesArr[0] & 0xff) << 8);
     result += (short)(bytesArr[1] & 0xff);
     return result;
 }
 
 
-void ConnectionHandler::shortToBytes(short num, char* bytesArr) {
+static void shortToBytes(short num, char* bytesArr) {
     bytesArr[0] = ((num >> 8) & 0xFF);
     bytesArr[1] = (num & 0xFF);
 
 }
 
 
-void ConnectionHandler::decode(String& msg) {
+static void decode(string& msg) {
     string decodedMsg = "";
     char opCode[2] = { msg[0],msg[1] };
     msg = msg.substr(2);
     switch (bytesToShort(opCode)) {
-    case 9:  //if message is notification
-        //add to decoded message noitifcation identifier
-        decodedMsg += "NOTIFICATION ";
-        //check if notification is pm or public and add PM or PUBLIC accordingly
-        char pmPublic = msg[0];
-        switch (pmPublic) {
-        case '0':
-            decodedMsg += "PM ";
-            break;
-        case '1':
-            decodedMsg += "PUBLIC ";
-            break;
-        }
-        msg = msg.substr(1);
-        decodedMsg += "from ";
-        // the rest of the message until the byte symbol \0 is the userName 
-        while (msg[0] != '\0') {
-            decodedMsg += msg[0];
+        case 9:{  //if message is notification
+            //add to decoded message noitifcation identifier
+            decodedMsg += "NOTIFICATION ";
+            //check if notification is pm or public and add PM or PUBLIC accordingly
+            char pmPublic = msg[0];
+            switch (pmPublic) {
+                case '0':
+                    decodedMsg += "PM ";
+                    break;
+                case '1':
+                    decodedMsg += "PUBLIC ";
+                    break;
+            }
             msg = msg.substr(1);
-        }
-        //instead of 0 add a dot and space (NOTIFICATION PM/PUBLIS from USERNAME: )
-        decodedMsg += ": "
-            // the rest of the message until the byte symbol \0 which if followed by ';' is the content
+            decodedMsg += "from ";
+            // the rest of the message until the byte symbol \0 is the userName
             while (msg[0] != '\0') {
                 decodedMsg += msg[0];
                 msg = msg.substr(1);
             }
-        //now message is complete so change message to be decodedMsg
-        msg = decodedMsg;
-        break;
-    case 10: //if message is ACK
+            //instead of 0 add a dot and space (NOTIFICATION PM/PUBLIS from USERNAME: )
+            decodedMsg += ": ";
+                // the rest of the message until the byte symbol \0 which if followed by ';' is the content
+            while (msg[0] != '\0') {
+                decodedMsg += msg[0];
+                msg = msg.substr(1);
+            }
+            //now message is complete so change message to be decodedMsg
+            msg = decodedMsg;
+            break;
+        }
 
-        break;
-    case 11: //if message is error
 
-        break;
+        case 10: { //if message is ACK
+            break;
+        }
 
+
+        case 11: { //if message is error
+            break;
+        }
     }
+
 }
 
-void ConnectionHandler::encode(String& msg) {
+//static bool stringToOpcode (string &msg){
+//    char ans[2];
+//        if (msg == "REGISTER"){
+//            shortToBytes(((short)1),ans);
+//            msg = ans;
+//            return true;
+//        }
+//        if (msg == "LOGIN"){
+//            return true;
+//
+//        }
+//        if (msg == "LOGOUT"){
+//            shortToBytes(((short)3),ans);
+//            while(true)
+//                cout<<ans[2]<<endl;
+//            msg = ans;
+//            return true;
+//        }
+//        if (msg == "LOGOUT"){
+//            return true;
+//
+//        }
+//        if (msg == "FOLLOW"){
+//            return true;
+//
+//        }
+//        if (msg == "POST"){
+//            return true;
+//
+//        }
+//        if (msg == "PM"){
+//            return true;
+//
+//        }
+//        if (msg == "LOGSTAT"){
+//            return true;
+//
+//        }
+//        if (msg == "STAT"){
+//            return true;
+//
+//        }
+//        if (msg == "NOTIFICATION"){
+//            return true;
+//
+//        }
+//        if (msg == "ACK"){
+//            return true;
+//
+//        }
+//        if (msg == "ERROR"){
+//            return true;
+//
+//        }
+//        if (msg == "BLOCK"){
+//            shortToBytes(((short)12),ans);
+//            msg = ans;
+//            return true;
+//        }
+//        return false;
+//    }
+
+
+static void encode(string& msg) {
+
+    msg = "11";
+    return;
+    // from https://www.delftstack.com/howto/cpp/cpp-split-string-by-space/
+//    string space_delimiter = " ";
+//    vector<string> splitMessage{};
+//
+//    //replace " " with '\0'
+//
+//
+//    size_t pos = 0;
+//    while ((pos = msg.find(space_delimiter)) != string::npos ) {
+//        splitMessage.push_back(msg.substr(0, pos));
+//        msg.erase(0, pos + space_delimiter.length());
+//    }
+//
+//    if (stringToOpcode(splitMessage[0])){
+//        while(true)
+//        cout<<msg<<endl;
+//    }
+//    return;
+//    if (msg == "LOGOUT"){
+//        msg = stringToOpcode(msg);
+//        return;
+//    }
+//    if (msg == "LOGSTAT"){
+//        msg = "07";
+//        return;
+//    }
 
 }
  
@@ -127,13 +224,23 @@ bool ConnectionHandler::sendBytes(const char bytes[], int bytesToWrite) {
     }
     return true;
 }
- 
+
+/*
+ *              WHERE TO DECODE
+ *                  WHERE
+ *                          WHERE
+ *               WHERE
+ *                                          WHERE
+ */
 bool ConnectionHandler::getLine(std::string& line) {
-    return getFrameAscii(line, '\n');
+    bool ans = getFrameAscii(line, ';');
+    decode(line);
+    return ans;
 }
 
+
 bool ConnectionHandler::sendLine(std::string& line) {
-    return sendFrameAscii(line, '\n');
+    return sendFrameAscii(line, ';');
 }
  
 bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
@@ -153,7 +260,10 @@ bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
 }
  
 bool ConnectionHandler::sendFrameAscii(const std::string& frame, char delimiter) {
-	bool result=sendBytes(frame.c_str(),frame.length());
+    string msg = frame;
+    encode(msg);
+//    char* decodedFrame = &decodedFrameVector[0];
+    bool result=sendBytes(msg.c_str(), frame.size());
 	if(!result) return false;
 	return sendBytes(&delimiter,1);
 }
