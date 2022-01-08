@@ -14,6 +14,36 @@ ConnectionHandler::~ConnectionHandler() {
     close();
 }
 
+static string shortToOpcode (short opCode){
+    switch (opCode){
+        case 1:
+            return "REGISTER";
+        case 2:
+            return "LOGIN";
+        case 3:
+            return "LOGOUT";
+        case 4:
+            return "FOLLOW";
+        case 5:
+            return "POST";
+        case 6:
+            return "PM";
+        case 7:
+            return "LOGSTAT";
+        case 8:
+            return "STAT";
+        case 9:
+            return "NOTIFICATION";
+        case 10:
+            return "ACK";
+        case 11:
+            return "ERROR";
+        case 12:
+            return "BLOCK";
+        default:
+            return "";
+    }
+}
 
 
 static short bytesToShort(char* bytesArr) {
@@ -34,7 +64,8 @@ static void decode(string& msg) {
     string decodedMsg = "";
     char opCode[2] = { msg[0],msg[1] };
     msg = msg.substr(2);
-    switch (bytesToShort(opCode)) {
+    short opcode = bytesToShort(opCode);
+    switch (opcode) {
         case 9:{  //if message is notification
             //add to decoded message noitifcation identifier
             decodedMsg += "NOTIFICATION ";
@@ -64,11 +95,22 @@ static void decode(string& msg) {
             }
             //now message is complete so change message to be decodedMsg
             msg = decodedMsg;
-            break;
+            return;
         }
 
 
         case 10: { //if message is ACK
+            decodedMsg += "ACK ";
+            //ACK always has a second opCode
+            char secOpCode[2] = { msg[0],msg[1] };
+            msg = msg.substr(2);
+            short secondOpCode = bytesToShort(secOpCode);
+            decodedMsg += shortToOpcode(secondOpCode);
+            if (msg.size()==0){
+                cout<<"SUCCESS"<<endl;
+                msg = decodedMsg;
+                return ;
+            }
             break;
         }
 
@@ -172,6 +214,7 @@ static string encode(const std::string& frame) {
 
 
     int wordNum = 0;
+
     if (splitMessage[wordNum] == "REGISTER"){
         // set msg = REGISTER
         msg = "01";
@@ -190,6 +233,46 @@ static string encode(const std::string& frame) {
         msg += '\0';
 
         // add birthday as normal DD-MM-YYYY string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        return msg;
+    }
+
+    if(splitMessage[wordNum]=="LOGIN"){
+        msg = "02";
+        wordNum++;
+
+        // add userName as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        // add password as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        // add capcha as a single character
+        msg += splitMessage[wordNum];
+        wordNum++;
+
+        return msg;
+    }
+
+    if(splitMessage[wordNum]=="FOLLOW"){
+        msg = "04";
+        wordNum++;
+
+        // add follow/unfollow as normal byte
+        msg += splitMessage[wordNum];
+        wordNum++;
+
+        // add username as normal string
         msg += splitMessage[wordNum];
         wordNum++;
         // signify end of string with a '\0'
@@ -224,7 +307,8 @@ bool ConnectionHandler::getBytes(char bytes[], unsigned int bytesToRead) {
 	boost::system::error_code error;
     try {
         while (!error && bytesToRead > tmp ) {
-			tmp += socket_.read_some(boost::asio::buffer(bytes+tmp, bytesToRead-tmp), error);			
+			tmp += socket_.read_some(boost::asio::buffer(bytes+tmp, bytesToRead-tmp), error);
+            cout<<"received character: "<<bytes[0]<<endl;
         }
 		if(error)
 			throw boost::system::system_error(error);
@@ -260,8 +344,9 @@ bool ConnectionHandler::sendBytes(const char bytes[], int bytesToWrite) {
  */
 bool ConnectionHandler::getLine(std::string& line) {
     bool ans = getFrameAscii(line, ';');
-    cout<<"in getLine: "<<line<<endl;
-//    decode(line);
+    line = line.substr(0,line.size()-1);
+    decode(line);
+    cout<<"decoded line: "<<line<<endl;
     return ans;
 }
 
@@ -277,7 +362,7 @@ bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
     try {
 		do{
 			getBytes(&ch, 1);
-            cout<<"received character: "<<ch<<endl;
+//            cout<<"received character: "<<ch<<endl;
             frame.append(1, ch);
         }while (delimiter != ch);
     } catch (std::exception& e) {
@@ -288,9 +373,9 @@ bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
 }
  
 bool ConnectionHandler::sendFrameAscii(const std::string& frame, char delimiter) {
-    cout<<"msg to send "<<frame<<endl;
+//    cout<<"msg to send "<<frame<<endl;
     string msg = encode(frame);
-    cout<<"sent msg is "<<msg<<endl;
+//    cout<<"sent msg is "<<msg<<endl;
     bool result=sendBytes(msg.c_str(), msg.size());
 	if(!result) return false;
 	return sendBytes(&delimiter,1);
