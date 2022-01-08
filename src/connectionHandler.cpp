@@ -260,7 +260,8 @@ bool ConnectionHandler::sendBytes(const char bytes[], int bytesToWrite) {
  */
 bool ConnectionHandler::getLine(std::string& line) {
     bool ans = getFrameAscii(line, ';');
-    decode(line);
+    cout<<"in getLine: "<<line<<endl;
+//    decode(line);
     return ans;
 }
 
@@ -276,6 +277,7 @@ bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
     try {
 		do{
 			getBytes(&ch, 1);
+            cout<<"received character: "<<ch<<endl;
             frame.append(1, ch);
         }while (delimiter != ch);
     } catch (std::exception& e) {
