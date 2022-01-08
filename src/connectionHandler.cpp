@@ -143,37 +143,63 @@ static void decode(string& msg) {
 //    }
 
 
-static void encode(string& msg) {
-
-    msg = "11";
-    return;
+static string encode(const std::string& frame) {
+    // create msg from frame
+    string msg(frame);
+    // if msg is logout
+    if (msg == "LOGOUT"){
+        msg = "03";
+        return msg;
+    }
+    // if msg is logstat
+    if (msg == "LOGSTAT"){
+        msg = "07";
+        return msg;
+    }
     // from https://www.delftstack.com/howto/cpp/cpp-split-string-by-space/
-//    string space_delimiter = " ";
-//    vector<string> splitMessage{};
-//
-//    //replace " " with '\0'
-//
-//
-//    size_t pos = 0;
-//    while ((pos = msg.find(space_delimiter)) != string::npos ) {
-//        splitMessage.push_back(msg.substr(0, pos));
-//        msg.erase(0, pos + space_delimiter.length());
-//    }
-//
-//    if (stringToOpcode(splitMessage[0])){
-//        while(true)
-//        cout<<msg<<endl;
-//    }
-//    return;
-//    if (msg == "LOGOUT"){
-//        msg = stringToOpcode(msg);
-//        return;
-//    }
-//    if (msg == "LOGSTAT"){
-//        msg = "07";
-//        return;
-//    }
+    /*
+     * split by space_delimiter (" ")
+     */
+    string space_delimiter = " ";
+    vector<string> splitMessage{};
+    size_t pos = 0;
+    while ((pos = msg.find(space_delimiter)) != string::npos ) {
+        splitMessage.push_back(msg.substr(0, pos));
+        msg.erase(0, pos + space_delimiter.length());
+    }
+    splitMessage.push_back(msg);
+    msg.erase(0,msg.size());
 
+
+    int wordNum = 0;
+    if (splitMessage[wordNum] == "REGISTER"){
+        // set msg = REGISTER
+        msg = "01";
+        wordNum++;
+
+        // add userName as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        // add password as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        // add birthday as normal DD-MM-YYYY string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+        return msg;
+    }
+
+
+    return nullptr;
 }
  
 bool ConnectionHandler::connect() {
@@ -260,10 +286,10 @@ bool ConnectionHandler::getFrameAscii(std::string& frame, char delimiter) {
 }
  
 bool ConnectionHandler::sendFrameAscii(const std::string& frame, char delimiter) {
-    string msg = frame;
-    encode(msg);
-//    char* decodedFrame = &decodedFrameVector[0];
-    bool result=sendBytes(msg.c_str(), frame.size());
+    cout<<"msg to send "<<frame<<endl;
+    string msg = encode(frame);
+    cout<<"sent msg is "<<msg<<endl;
+    bool result=sendBytes(msg.c_str(), msg.size());
 	if(!result) return false;
 	return sendBytes(&delimiter,1);
 }
