@@ -1,6 +1,10 @@
 #include <connectionHandler.h>
- 
+#include <mutex>
+
 using boost::asio::ip::tcp;
+
+
+
 
 using std::cin;
 using std::cout;
@@ -8,8 +12,21 @@ using std::cerr;
 using std::endl;
 using std::string;
  using namespace std;
-ConnectionHandler::ConnectionHandler(string host, short port): host_(host), port_(port), io_service_(), socket_(io_service_){}
+
+ typedef mutex Lock;
+ typedef unique_lock< Lock >  WriteLock;
+ typedef unique_lock< Lock >  ReadLock;
+
+ Lock myLock;
+
+ 
+ ConnectionHandler::ConnectionHandler(string host, short port): host_(host), port_(port), io_service_(), socket_(io_service_){
+}
     
+ConnectionHandler::ConnectionHandler(const ConnectionHandler& rhs):host_(rhs.host_),port_(rhs.port_),io_service_(),socket_(io_service_) {
+
+}
+
 ConnectionHandler::~ConnectionHandler() {
     close();
 }
@@ -53,18 +70,20 @@ static short bytesToShort(char* bytesArr) {
 }
 
 
+/*
 static void shortToBytes(short num, char* bytesArr) {
     bytesArr[0] = ((num >> 8) & 0xFF);
     bytesArr[1] = (num & 0xFF);
 
 }
-
+*/
 
 static void decode(string& msg) {
     string decodedMsg = "";
     char opCode[2] = { msg[0],msg[1] };
     msg = msg.substr(2);
     short opcode = bytesToShort(opCode);
+    cout<<"received opCode: "<<opcode<<endl;
     switch (opcode) {
         case 9:{  //if message is notification
             //add to decoded message noitifcation identifier
@@ -88,7 +107,8 @@ static void decode(string& msg) {
             }
             //instead of 0 add a dot and space (NOTIFICATION PM/PUBLIS from USERNAME: )
             decodedMsg += ": ";
-                // the rest of the message until the byte symbol \0 which if followed by ';' is the content
+            msg = msg.substr(1);
+            // the rest of the message until the byte symbol \0 which if followed by ';' is the content
             while (msg[0] != '\0') {
                 decodedMsg += msg[0];
                 msg = msg.substr(1);
@@ -97,8 +117,6 @@ static void decode(string& msg) {
             msg = decodedMsg;
             return;
         }
-
-
         case 10: { //if message is ACK
             cout<<"CH 104 - message is ACK"<<endl;
             decodedMsg += "ACK ";
@@ -107,17 +125,61 @@ static void decode(string& msg) {
             msg = msg.substr(2);
             short secondOpCode = bytesToShort(secOpCode);
             decodedMsg += shortToOpcode(secondOpCode);
-            if (msg.size()==0){
-                cout<<"SUCCESS"<<endl;
+            // decodedMsg += to_string(secondOpCode);
+
+            // if ACK has optional it's either follow or stat\logstat
+            if (secondOpCode == 4){ //If ack follow
+                decodedMsg += " ";
+                // the rest of the message until the byte symbol \0 which if followed by ';' is the username
+                while (msg[0] != '\0') {
+                    decodedMsg += msg[0];
+                    msg = msg.substr(1);
+                }
+                //now message is complete so change message to be decodedMsg
                 msg = decodedMsg;
+                return;
+            }
+            if (secondOpCode == 7 or secondOpCode == 8){ //If ack stat\logstat
+                decodedMsg += " ";
+                // get first 6 bytes as shorts: [1,2]age [1,2]numPosts [1,2]numFollowers [1,2]numFollowing
+                int i=2;
+                //until reached the end of the message
+                while (msg.size() > 1){
+                    if (i % 6 ==0 or i % 6 == 1){
+                        char toAdd[2] = { msg[0],msg[1] };
+                        msg = msg.substr(2);
+                        string opCodeString = shortToOpcode(bytesToShort(toAdd));
+                        if (i % 6 ==0) {
+                            decodedMsg+= '\n';
+                        }
+                        decodedMsg+= opCodeString + " ";
+                    }
+                    else{
+                        // the rest of the message is shorts
+                        char toAdd[2] = { msg[0],msg[1] };
+                        msg = msg.substr(2);
+                        short shortToAdd = bytesToShort(toAdd);
+                        decodedMsg += to_string(shortToAdd) + " ";
+                    }
+                    i++;
+                }
+                // trim space added
+                msg = decodedMsg.substr(0,decodedMsg.length()-1);
                 return ;
             }
-            break;
+            msg = decodedMsg;
+            return;
         }
-
-
         case 11: { //if message is error
-            break;
+            decodedMsg += "ERROR ";
+            //ERROR always has a second opcode
+            char secOpCode[2] = {msg[0],msg[1]};
+            msg = msg.substr(2);
+            short secondOpcode = bytesToShort(secOpCode);
+            decodedMsg += shortToOpcode(secondOpcode);
+//            decodedMsg += to_string(secondOpcode);
+            msg = decodedMsg;
+            return;
         }
     }
 
@@ -214,7 +276,7 @@ static string encode(const std::string& frame) {
     msg.erase(0,msg.size());
 
     // all messages aht
-    int wordNum = 0;
+    long unsigned int wordNum = 0;
 
     if (splitMessage[wordNum] == "REGISTER"){
         // set msg = REGISTER
@@ -349,7 +411,9 @@ static string encode(const std::string& frame) {
 }
  
 bool ConnectionHandler::connect() {
-    std::cout << "Starting connect to " 
+
+    ReadLock r_lock(myLock);
+    std::cout << "Attempting to connect to "
         << host_ << ":" << port_ << std::endl;
     try {
 		tcp::endpoint endpoint(boost::asio::ip::address::from_string(host_), port_); // the server endpoint
@@ -362,6 +426,8 @@ bool ConnectionHandler::connect() {
         std::cerr << "Connection failed (Error: " << e.what() << ')' << std::endl;
         return false;
     }
+    cout << "Successfuly connected to "
+            << host_ << ":" << port_ << std::endl;
     return true;
 }
  
@@ -371,7 +437,6 @@ bool ConnectionHandler::getBytes(char bytes[], unsigned int bytesToRead) {
     try {
         while (!error && bytesToRead > tmp ) {
 			tmp += socket_.read_some(boost::asio::buffer(bytes+tmp, bytesToRead-tmp), error);
-            cout<<"received character: "<<bytes[0]<<endl;
         }
 		if(error)
 			throw boost::system::system_error(error);
@@ -406,15 +471,18 @@ bool ConnectionHandler::sendBytes(const char bytes[], int bytesToWrite) {
  *                                          WHERE
  */
 bool ConnectionHandler::getLine(std::string& line) {
+    ReadLock r_lock(myLock);
     bool ans = getFrameAscii(line, ';');
     line = line.substr(0,line.size()-1);
+    cout<<"received message: \""<<&line<<"\"."<<endl;
     decode(line);
-    cout<<"decoded line: "<<line<<endl;
+    cout<<"decoded received message: \""<<line<<"\"."<<endl;
     return ans;
 }
 
 
 bool ConnectionHandler::sendLine(std::string& line) {
+    WriteLock w_lock(myLock);
     return sendFrameAscii(line, ';');
 }
  

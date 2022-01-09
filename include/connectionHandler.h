@@ -9,6 +9,7 @@ using boost::asio::ip::tcp;
 
 class ConnectionHandler {
 private:
+
 	const std::string host_;
 	const short port_;
 	boost::asio::io_service io_service_;   // Provides core I/O functionality
@@ -16,6 +17,7 @@ private:
  
 public:
     ConnectionHandler(std::string host, short port);
+    ConnectionHandler(const ConnectionHandler& rhs);
     virtual ~ConnectionHandler();
  
     // Connect to the remote machine
