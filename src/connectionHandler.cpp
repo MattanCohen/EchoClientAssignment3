@@ -100,6 +100,7 @@ static void decode(string& msg) {
 
 
         case 10: { //if message is ACK
+            cout<<"CH 104 - message is ACK"<<endl;
             decodedMsg += "ACK ";
             //ACK always has a second opCode
             char secOpCode[2] = { msg[0],msg[1] };
@@ -212,7 +213,7 @@ static string encode(const std::string& frame) {
     splitMessage.push_back(msg);
     msg.erase(0,msg.size());
 
-
+    // all messages aht
     int wordNum = 0;
 
     if (splitMessage[wordNum] == "REGISTER"){
@@ -281,6 +282,68 @@ static string encode(const std::string& frame) {
         return msg;
     }
 
+    if( splitMessage[wordNum]=="POST"){
+        msg = "05";
+        wordNum++;
+
+        while (wordNum < splitMessage.size()){
+            //send content as normal string
+            msg += splitMessage[wordNum];
+            wordNum++;
+            // signify end of string with a '\0'
+            msg += " ";
+        }
+        msg += '\0';
+
+        return msg;
+    }
+
+    if(splitMessage[wordNum]=="PM"){
+         msg="06";
+         wordNum++;
+        //send username as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+
+
+        while (wordNum < splitMessage.size()){
+            //send content as normal string
+            msg += splitMessage[wordNum];
+            wordNum++;
+            // signify end of string with a '\0'
+            msg += " ";
+        }
+
+        // signify end of string with a '\0'
+        msg += '\0';
+        return msg;
+        }
+
+    if(splitMessage[wordNum]=="STAT"){
+        cout << "encode found STAT as opCode"<<endl;
+        msg="08";
+        wordNum++;
+        cout << "list of usernames: "<<splitMessage[wordNum];
+        //send list of usernames as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+        return msg;
+    }
+
+    if(splitMessage[wordNum]=="BLOCK"){
+        msg="12";
+        wordNum++;
+        //send username as normal string
+        msg += splitMessage[wordNum];
+        wordNum++;
+        // signify end of string with a '\0'
+        msg += '\0';
+        return msg;
+    }
 
     return nullptr;
 }
